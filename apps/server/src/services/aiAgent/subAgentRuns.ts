@@ -48,6 +48,13 @@ export interface SubAgentRunDeps {
 
 export interface ExecAgentThreadRunOptions {
   /**
+   * Detached `callSubAgent({ runInBackground })` run. Its placeholder already
+   * holds the start receipt the parent read, so the thread hooks must not
+   * replace it with the answer, and nobody is listening on the parent's
+   * channel for live progress.
+   */
+  background?: boolean;
+  /**
    * Override the default sub-agent completion bridge with a custom hook
    * (e.g. the group-action member bridge for isolated executeAgentTask(s)).
    * Receives the freshly-created isolation thread id. Only used when
@@ -277,6 +284,7 @@ export const execAgentThreadRun = async (
     hasCompletionBridge ? undefined : parentMessageId,
     options.logScope,
     usageBaseline,
+    { updateSourceMessage: !options.background },
   );
   // For the virtual sub-agent path, also register the completion bridge that
   // backfills the parent's placeholder tool message and resumes the parked
@@ -314,7 +322,10 @@ export const execAgentThreadRun = async (
   // members are excluded — their whole stream is already mirrored onto the
   // supervisor's channel via `mirrorToOperationId`.
   const subAgentProgress =
-    options.resumeParentOnComplete && parentOperationId && options.orchestrationRole !== 'member'
+    options.resumeParentOnComplete &&
+    parentOperationId &&
+    options.orchestrationRole !== 'member' &&
+    !options.background
       ? { parentOperationId, toolMessageId: parentMessageId }
       : undefined;
 
