@@ -68,7 +68,7 @@ import { createGraphAwareAgentFactory } from './helpers/agentFactory';
 import {
   createGroupActionMemberBridgeHook,
   createThreadHooks,
-  pickThreadUsageBaseline,
+  pickThreadCarryOver,
 } from './hooks/threadRunHooks';
 import { InterventionController } from './intervention/InterventionController';
 import type { ApprovalClaimState } from './pipeline/approvalResume';
@@ -583,7 +583,7 @@ export class AiAgentService {
             // The recovered group-member bridge owns result publication.
             undefined,
             'execVirtualSubAgent',
-            pickThreadUsageBaseline(thread.metadata),
+            pickThreadCarryOver(thread.metadata),
           );
         },
         findMessagePlugin: (messageId) => this.messageModel.findMessagePlugin(messageId),
