@@ -40,6 +40,12 @@ export const getBotSender = (message: {
   (message.metadata?.trigger === RequestTrigger.Bot ? parseSpeakerTag(message.content) : undefined);
 
 interface ResolveSenderIdentityOptions {
+  /**
+   * A background sub-agent reporting back in a user turn of its own. Resolved
+   * client-side from the live agent, and wins over everything else, since the
+   * row is the parent conversation's.
+   */
+  subAgentSender?: { avatar?: string; title: string } | null;
   /** Viewer's user id, used to detect their own messages. */
   currentUserId?: null | string;
   /**
@@ -73,8 +79,17 @@ export const resolveSenderIdentity = ({
   selfAvatar,
   selfTitle,
   sender,
+  subAgentSender,
   unknownLabel,
 }: ResolveSenderIdentityOptions) => {
+  if (subAgentSender) {
+    return {
+      avatar: subAgentSender.avatar,
+      isOwn: false,
+      title: subAgentSender.title || unknownLabel,
+    };
+  }
+
   const agentSender = getAgentSender(message);
   const botSender = getBotSender(message);
 
