@@ -2,7 +2,7 @@ import { isSafeSandboxCwd } from '@lobechat/builtin-tool-cloud-sandbox';
 import { ConnectorDataError } from '@lobechat/connector-data';
 import { MAX_REPOSITORY_BRANCHES } from '@lobechat/connector-data/github';
 import { type LobeChatDatabase } from '@lobechat/database';
-import { toExecutionConfiguration } from '@lobechat/types';
+import { environmentKind, toExecutionConfiguration } from '@lobechat/types';
 import {
   derivedInstanceDirectory,
   isDefaultInstance,
@@ -687,7 +687,7 @@ export const sandboxStorageRouter = router({
         .copyInstance({
           from: source.id,
           instanceDir: created.workingDirectory,
-          ...(source.configurationSnapshot?.kind === 'files' && {
+          ...(environmentKind({ configuration: source.configurationSnapshot }) === 'files' && {
             sourceInstanceDir: source.workingDirectory,
           }),
           to: created.id,
