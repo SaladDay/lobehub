@@ -699,7 +699,7 @@ const VISITOR_MESSAGE_ALLOWED_KEYS = [
   'performance',
   'observationId',
   'traceId',
-  'compressedMessagesOmitted',
+  'compressedOmittedIds',
 ] as const satisfies readonly (keyof UIChatMessage)[];
 
 type VisitorAllowedKey = (typeof VISITOR_MESSAGE_ALLOWED_KEYS)[number];

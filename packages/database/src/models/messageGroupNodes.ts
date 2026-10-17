@@ -195,7 +195,10 @@ export const buildMessageGroupNode = (
     .map((record) => messageMap.get(record.id))
     .filter(Boolean)
     .map((m) => toSnapshot(m!));
-  const omittedCount = records.length - hydrated.length;
+  // `hydrated` is a suffix of `records`, so the omitted members lead it.
+  const compressedOmittedIds = records
+    .slice(0, records.length - hydrated.length)
+    .map((record) => record.id);
   const compressedStateMessages = (plan.stateByGroup.get(group.id) ?? [])
     .map((record) => stateRows.get(record.id))
     .filter(Boolean)
@@ -212,7 +215,7 @@ export const buildMessageGroupNode = (
 
   return {
     compressedMessages: parse(groupMsgs).flatList,
-    ...(omittedCount > 0 && { compressedMessagesOmitted: omittedCount }),
+    ...(compressedOmittedIds.length > 0 && { compressedOmittedIds }),
     ...(compressedStateMessages.length > 0 && { compressedStateMessages }),
     content: group.content,
     createdAt: group.createdAt,

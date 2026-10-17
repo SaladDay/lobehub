@@ -224,11 +224,12 @@ export interface UIChatMessage {
    */
   compressedMessages?: UIChatMessage[];
   /**
-   * How many of the group's oldest members `compressedMessages` leaves out.
-   * A compression group can hold thousands of messages; the read path only
-   * hydrates the newest ones (see `MAX_COMPRESSED_GROUP_MEMBERS`).
+   * Ids of the group's oldest members that `compressedMessages` leaves out. A
+   * compression group can hold thousands of messages; the read path only
+   * hydrates the newest ones (see `MAX_COMPRESSED_GROUP_MEMBERS`) but keeps
+   * every member addressable, e.g. by a `#<message-id>` deep link.
    */
-  compressedMessagesOmitted?: number;
+  compressedOmittedIds?: string[];
   /**
    * Flat `tool` rows (plugin + pluginState only) of omitted compression members
    * whose state later runs restore: activated skills / tools and todos. Kept

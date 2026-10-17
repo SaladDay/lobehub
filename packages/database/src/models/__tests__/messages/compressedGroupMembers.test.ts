@@ -68,7 +68,9 @@ describe('MessageModel.query compression group member cap', () => {
 
       // Slice = indices [21, total) trimmed to the first user row (22).
       const omitted = 22;
-      expect(node.compressedMessagesOmitted).toBe(omitted);
+      expect(node.compressedOmittedIds).toHaveLength(omitted);
+      expect(node.compressedOmittedIds[0]).toBe('big-0000');
+      expect(node.compressedOmittedIds.at(-1)).toBe('big-0021');
       const ids = node.compressedMessages.map((m: any) => m.id);
       expect(ids).not.toContain('big-0000');
       expect(ids).not.toContain('big-0021');
@@ -99,7 +101,7 @@ describe('MessageModel.query compression group member cap', () => {
       const result = await messageModel.query({ topicId });
       const node = result.find((m) => m.role === 'compressedGroup') as any;
 
-      expect(node.compressedMessagesOmitted).toBeUndefined();
+      expect(node.compressedOmittedIds).toBeUndefined();
       expect(node.compressedMessages).toHaveLength(2);
     });
   });
