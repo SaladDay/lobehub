@@ -19,12 +19,15 @@ import type { LobeChatDatabase } from '../type';
 export const MAX_COMPRESSED_GROUP_MEMBERS = 300;
 
 /**
- * Tool identifiers whose `pluginState` later runs read back from history to
- * restore activated skills and tools (see `extractActivatedSkillsFromMessages`
- * / `extractActivatedToolIdsFromMessages` in `@lobechat/agent-runtime`).
- * Literal copies — the tool packages are not database dependencies.
+ * Tool calls whose `pluginState` later runs read back from history to restore
+ * activated skills and tools (see `extractActivatedSkillsFromMessages` /
+ * `extractActivatedToolIdsFromMessages` in `@lobechat/agent-runtime`): the
+ * activation APIs of these identifiers only — their command / script /
+ * resource calls carry no restored state and can be large. Literal copies —
+ * the tool packages are not database dependencies.
  */
 const STATE_BEARING_TOOL_IDENTIFIERS = new Set(['lobe-activator', 'lobe-skills']);
+const STATE_BEARING_API_NAMES = new Set(['activateSkill', 'activateTools']);
 
 /**
  * Columns the light member select adds (it left-joins `message_plugins`), so
@@ -32,6 +35,7 @@ const STATE_BEARING_TOOL_IDENTIFIERS = new Set(['lobe-activator', 'lobe-skills']
  */
 export const compressedStateMarkerColumns = {
   carriesTodos: sql<boolean>`jsonb_typeof(${messagePlugins.state} -> 'todos') is not null`,
+  pluginApiName: messagePlugins.apiName,
   pluginIdentifier: messagePlugins.identifier,
 };
 
@@ -41,6 +45,7 @@ export interface MessageGroupMemberRecord {
   favorite: boolean | null;
   id: string;
   messageGroupId: string | null;
+  pluginApiName: string | null;
   pluginIdentifier: string | null;
   role: string | null;
 }
@@ -48,7 +53,10 @@ export interface MessageGroupMemberRecord {
 const carriesRuntimeState = (record: MessageGroupMemberRecord) =>
   record.role === 'tool' &&
   (record.carriesTodos === true ||
-    (!!record.pluginIdentifier && STATE_BEARING_TOOL_IDENTIFIERS.has(record.pluginIdentifier)));
+    (!!record.pluginIdentifier &&
+      STATE_BEARING_TOOL_IDENTIFIERS.has(record.pluginIdentifier) &&
+      !!record.pluginApiName &&
+      STATE_BEARING_API_NAMES.has(record.pluginApiName)));
 
 type MessageGroupRow = Pick<
   MessageGroupItem,

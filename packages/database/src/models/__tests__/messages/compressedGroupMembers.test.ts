@@ -111,9 +111,10 @@ describe('MessageModel.query compression group member cap', () => {
       const total = MAX_COMPRESSED_GROUP_MEMBERS + 21;
       const base = Date.parse('2024-01-01T00:00:00Z');
       const idOf = (i: number) => `st-${String(i).padStart(4, '0')}`;
-      // Indices 1..3 are omitted tool rows: an activator call, a TODO write
-      // from another tool, and a plain tool result that carries no state.
-      const toolRows = new Set([1, 2, 3]);
+      // Indices 1..4 are omitted tool rows: an activator call, a TODO write
+      // from another tool, a plain tool result that carries no state, and a
+      // non-activation `lobe-skills` call (its command state is not restored).
+      const toolRows = new Set([1, 2, 3, 4]);
       await serverDB.insert(messages).values(
         Array.from({ length: total }, (_, i) => ({
           content: `member ${i}`,
@@ -144,6 +145,13 @@ describe('MessageModel.query compression group member cap', () => {
           id: idOf(3),
           identifier: 'lobe-web-browsing',
           state: { results: [] },
+          userId,
+        },
+        {
+          apiName: 'runCommand',
+          id: idOf(4),
+          identifier: 'lobe-skills',
+          state: { command: 'x'.repeat(1000) },
           userId,
         },
       ]);
