@@ -70,24 +70,54 @@ const percentOf = (bytes: number | null | undefined, quota: number) =>
 type DriveUsageData = NonNullable<ReturnType<typeof useDriveUsage>['data']>;
 
 /**
- * Where the pool goes: each of the caller's drives, then — for an owner or
- * admin — each member's personal drive, how much and never what.
+ * Where the pool goes: the total against the plan, each of the caller's
+ * drives, then — for an owner or admin — each member's personal drive, how
+ * much and never what. One component for both places it is read — the
+ * storage page's meter opens it, the billing usage page embeds it — so the two
+ * never disagree on a figure.
  */
-const UsageDetail = memo<{
+export const DriveUsageBreakdown = memo<{
   data: DriveUsageData;
+  /** In a popover: bounded width. Embedded in a page: the page's width. */
+  inPopover?: boolean;
   onRefresh: () => Promise<void>;
-}>(({ data, onRefresh }) => {
+}>(({ data, inPopover, onRefresh }) => {
   const { t } = useTranslation('setting');
   const [refreshing, setRefreshing] = useState(false);
   const drives = data.drives ?? [];
   const members = data.members ?? [];
   const isWorkspace = drives.length > 1;
-  const over = data.totalUsageBytes !== null && data.totalUsageBytes > data.quotaBytes;
+  const { quotaBytes, totalUsageBytes } = data;
+  const over = totalUsageBytes !== null && totalUsageBytes > quotaBytes;
 
   return (
-    <Flexbox gap={12} style={{ maxWidth: 'min(360px, 80vw)', minWidth: 280 }}>
+    <Flexbox
+      gap={12}
+      style={inPopover ? { maxWidth: 'min(360px, 80vw)', minWidth: 280 } : undefined}
+    >
       <Flexbox horizontal align={'center'} justify={'space-between'}>
-        <Text weight={500}>{t(isWorkspace ? 'drive.usage.poolTitle' : 'drive.usage.title')}</Text>
+        <Flexbox gap={6} style={{ minWidth: 0 }}>
+          <Text weight={500}>{t(isWorkspace ? 'drive.usage.poolTitle' : 'drive.usage.title')}</Text>
+          <Flexbox horizontal align={'center'} gap={8}>
+            <span className={styles.meter} style={{ width: inPopover ? 96 : 160 }}>
+              <span
+                className={styles.meterFill}
+                style={{
+                  background: over ? cssVar.colorError : cssVar.colorPrimary,
+                  width: `${percentOf(totalUsageBytes, quotaBytes)}%`,
+                }}
+              />
+            </span>
+            <Text fontSize={12} type={over ? 'danger' : 'secondary'}>
+              {totalUsageBytes === null
+                ? t('drive.usage.unmeasured', { total: formatSize(quotaBytes) })
+                : t('drive.usage.used', {
+                    total: formatSize(quotaBytes),
+                    used: formatSize(totalUsageBytes),
+                  })}
+            </Text>
+          </Flexbox>
+        </Flexbox>
         <ActionIcon
           icon={RefreshCwIcon}
           loading={refreshing}
@@ -175,7 +205,7 @@ const UsageDetail = memo<{
   );
 });
 
-UsageDetail.displayName = 'UsageDetail';
+DriveUsageBreakdown.displayName = 'DriveUsageBreakdown';
 
 /**
  * How full the plan's storage is, as one compact meter in the page header.
@@ -202,7 +232,7 @@ const DriveUsage = memo(() => {
 
   return (
     <Popover
-      content={<UsageDetail data={data} onRefresh={refresh} />}
+      content={<DriveUsageBreakdown inPopover data={data} onRefresh={refresh} />}
       placement={'bottomRight'}
       trigger={'click'}
     >
@@ -240,3 +270,17 @@ const DriveUsage = memo(() => {
 DriveUsage.displayName = 'DriveUsage';
 
 export default DriveUsage;
+
+/**
+ * The breakdown on its own, for a page that shows usage as a section of its
+ * own — the billing usage page — rather than as a meter beside something else.
+ * Nothing while loading or when there is no drive to break down.
+ */
+export const DriveUsageCard = memo(() => {
+  const { data, error, refresh } = useDriveUsage();
+  if (error || !data) return null;
+
+  return <DriveUsageBreakdown data={data} onRefresh={refresh} />;
+});
+
+DriveUsageCard.displayName = 'DriveUsageCard';
