@@ -223,6 +223,12 @@ export interface UIChatMessage {
    * Used for rendering expanded view with conversation-flow parsing
    */
   compressedMessages?: UIChatMessage[];
+  /**
+   * How many of the group's oldest members `compressedMessages` leaves out.
+   * A compression group can hold thousands of messages; the read path only
+   * hydrates the newest ones (see `MAX_COMPRESSED_GROUP_MEMBERS`).
+   */
+  compressedMessagesOmitted?: number;
   content: string;
   /**
    * Character length of the STORED tool result body, kept when the read path
