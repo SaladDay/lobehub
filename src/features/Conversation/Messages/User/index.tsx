@@ -71,11 +71,7 @@ const UserMessage = memo<UserMessageProps>(({ id, disableEditing, index }) => {
   // its sender is always shown. Same for an agent → agent turn and a
   // background sub-agent's report.
   const showSender =
-    Boolean(activeWorkspaceId) ||
-    !!botSender ||
-    !!scmSource ||
-    !!agentSender ||
-    !!subAgentSender;
+    Boolean(activeWorkspaceId) || !!botSender || !!scmSource || !!agentSender || !!subAgentSender;
   const currentUserId = useUserStore(userProfileSelectors.userId);
   const { avatar, title } = resolveSenderIdentity({
     currentUserId,
@@ -146,6 +142,12 @@ const UserMessage = memo<UserMessageProps>(({ id, disableEditing, index }) => {
           <MessageCommentBadge count={commentCount} messageId={id} topicId={commentTopicId} />
         ) : undefined
       }
+      belowMessage={
+        <>
+          {subAgentCallback && <SubAgentThreadLink callback={subAgentCallback} />}
+          <ScheduledRunFooter id={id} />
+        </>
+      }
       headerAddon={
         scmSource || metadata?.steer ? (
           <>
@@ -153,12 +155,6 @@ const UserMessage = memo<UserMessageProps>(({ id, disableEditing, index }) => {
             {metadata?.steer && <Tag>{t('steer.tag')}</Tag>}
           </>
         ) : undefined
-      }
-      belowMessage={
-        <>
-          {subAgentCallback && <SubAgentThreadLink callback={subAgentCallback} />}
-          <ScheduledRunFooter id={id} />
-        </>
       }
       titleAddon={
         subAgentCallback ? (

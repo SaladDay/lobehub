@@ -40,12 +40,6 @@ export const getBotSender = (message: {
   (message.metadata?.trigger === RequestTrigger.Bot ? parseSpeakerTag(message.content) : undefined);
 
 interface ResolveSenderIdentityOptions {
-  /**
-   * A background sub-agent reporting back in a user turn of its own. Resolved
-   * client-side from the live agent, and wins over everything else, since the
-   * row is the parent conversation's.
-   */
-  subAgentSender?: { avatar?: string; title: string } | null;
   /** Viewer's user id, used to detect their own messages. */
   currentUserId?: null | string;
   /**
@@ -60,6 +54,12 @@ interface ResolveSenderIdentityOptions {
   /** Viewer's display name, applied only to their own messages. */
   selfTitle?: string;
   sender?: MessageSender | null;
+  /**
+   * A background sub-agent reporting back in a user turn of its own. Resolved
+   * client-side from the live agent, and wins over everything else, since the
+   * row is the parent conversation's.
+   */
+  subAgentSender?: { avatar?: string; title: string } | null;
   /** Label for another member whose profile carries no usable name. */
   unknownLabel: string;
 }
