@@ -74,7 +74,7 @@ const SandboxDirectoryContent = ({
 
   // Without a drive there is nothing to browse: the way to one stands where
   // the folders would be.
-  if (entitled === false) return <SandboxStorageUpgradeGuide />;
+  if (entitled === false) return <SandboxStorageUpgradeGuide compact onLeave={close} />;
   if (entitled === undefined) {
     return (
       <Center style={{ minHeight: 240 }}>
