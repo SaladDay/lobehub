@@ -1,10 +1,10 @@
 import { parse } from '@lobechat/conversation-flow';
 import type { UIChatMessage } from '@lobechat/types';
 import { MessageGroupType } from '@lobechat/types';
-import { inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 
 import type { MessageGroupItem } from '../schemas';
-import { messagePlugins } from '../schemas';
+import { messagePlugins, messages } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
 /**
@@ -14,7 +14,8 @@ import type { LobeChatDatabase } from '../type';
  * through `parse()` — one such read of a 5k-member group held a server
  * instance for ~2 minutes and stalled every request sharing it. The newest
  * members are kept (aligned to a round start); pinned members load regardless,
- * and omitted members that carry runtime state keep their plugin state.
+ * and omitted members that carry runtime state keep their plugin state as
+ * flat `tool` rows.
  */
 export const MAX_COMPRESSED_GROUP_MEMBERS = 300;
 
@@ -129,10 +130,12 @@ export const planMessageGroupHydration = (
 
 export interface CompressedStateRow {
   apiName: string | null;
+  createdAt: Date;
   id: string;
   identifier: string | null;
   state: unknown;
   type: string | null;
+  updatedAt: Date;
 }
 
 /**
@@ -149,12 +152,15 @@ export const loadCompressedStateRows = async (
   const rows = await db
     .select({
       apiName: messagePlugins.apiName,
+      createdAt: messages.createdAt,
       id: messagePlugins.id,
       identifier: messagePlugins.identifier,
       state: messagePlugins.state,
       type: messagePlugins.type,
+      updatedAt: messages.updatedAt,
     })
     .from(messagePlugins)
+    .innerJoin(messages, eq(messages.id, messagePlugins.id))
     .where(inArray(messagePlugins.id, ids));
 
   return new Map(rows.map((row) => [row.id, row]));
@@ -207,10 +213,16 @@ export const buildMessageGroupNode = (
   const compressedOmittedIds = records
     .slice(0, records.length - hydrated.length)
     .map((record) => record.id);
-  const compressedStateMessages = (plan.stateByGroup.get(group.id) ?? [])
+  // Omitted members that carry runtime state, as flat `tool` rows (plugin +
+  // state, no content) ahead of the hydrated slice. Every released client's
+  // selectors already restore state from flat tool rows in `compressedMessages`,
+  // and the compressed history view does not render `tool` rows.
+  const stateMessages = (plan.stateByGroup.get(group.id) ?? [])
     .map((record) => stateRows.get(record.id))
     .filter(Boolean)
     .map((row) => ({
+      content: '',
+      createdAt: row!.createdAt,
       id: row!.id,
       plugin: {
         apiName: row!.apiName,
@@ -219,12 +231,12 @@ export const buildMessageGroupNode = (
       },
       pluginState: row!.state,
       role: 'tool',
+      updatedAt: row!.updatedAt,
     })) as unknown as UIChatMessage[];
 
   return {
-    compressedMessages: parse(groupMsgs).flatList,
+    compressedMessages: [...stateMessages, ...parse(groupMsgs).flatList],
     ...(compressedOmittedIds.length > 0 && { compressedOmittedIds }),
-    ...(compressedStateMessages.length > 0 && { compressedStateMessages }),
     content: group.content,
     createdAt: group.createdAt,
     id: group.id,

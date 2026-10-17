@@ -119,8 +119,7 @@ interface ToolInvocation {
  *    FlatListBuilder.createAssistantGroupMessage). Without this branch,
  *    cross-turn skill activations are invisible to later runs.
  *    `compressedGroup` nodes keep their members on `compressedMessages` in
- *    the same flat-list shape (and the state-bearing rows of omitted members
- *    on `compressedStateMessages`), so recurse into both.
+ *    the same flat-list shape, so recurse into them.
  */
 const collectToolInvocations = (msg: UIChatMessage): ToolInvocation[] => {
   if (msg.role === 'tool') {
@@ -145,12 +144,9 @@ const collectToolInvocations = (msg: UIChatMessage): ToolInvocation[] => {
     }
   }
 
-  // `compressedStateMessages` holds the state-bearing tool rows of members the
-  // read path left out of `compressedMessages` (oldest first, so before them).
-  const { compressedMessages, compressedStateMessages } = msg;
-  for (const nested of [compressedStateMessages, compressedMessages]) {
-    if (!Array.isArray(nested)) continue;
-    for (const compressed of nested) {
+  const { compressedMessages } = msg;
+  if (Array.isArray(compressedMessages)) {
+    for (const compressed of compressedMessages) {
       invocations.push(...collectToolInvocations(compressed));
     }
   }

@@ -1012,11 +1012,6 @@ export const toVisitorMessage = (
         toVisitorMessage(nested, options),
       ),
     }),
-    ...(message.compressedStateMessages && {
-      compressedStateMessages: message.compressedStateMessages.map((nested) =>
-        toVisitorMessage(nested, options),
-      ),
-    }),
     ...(message.members && {
       members: message.members.map((nested) => toVisitorMessage(nested, options)),
     }),

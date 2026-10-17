@@ -230,12 +230,6 @@ export interface UIChatMessage {
    * every member addressable, e.g. by a `#<message-id>` deep link.
    */
   compressedOmittedIds?: string[];
-  /**
-   * Flat `tool` rows (plugin + pluginState only) of omitted compression members
-   * whose state later runs restore: activated skills / tools and todos. Kept
-   * out of `compressedMessages` so the display never renders them.
-   */
-  compressedStateMessages?: UIChatMessage[];
   content: string;
   /**
    * Character length of the STORED tool result body, kept when the read path

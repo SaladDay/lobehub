@@ -544,54 +544,32 @@ describe('extractActivatedToolIdsFromMessages', () => {
   });
 });
 
-describe('compressedGroup compressedStateMessages', () => {
-  const activatorRow = (identifier: string) =>
-    createToolMessage({
-      plugin: { apiName: 'activateTools', identifier: 'lobe-activator' },
-      pluginState: { activatedTools: [{ identifier }] },
-    } as any);
-
-  it('restores tools activated by members the read path left out', () => {
+describe('flat tool rows inside compressedGroup compressedMessages', () => {
+  // The capped compression read path puts the state-bearing rows of members it
+  // does not hydrate here as flat tool rows; released clients rely on this.
+  it('restores activated tools, skills and todos from flat tool rows', () => {
+    const todos = { items: [{ status: 'todo', text: 'old' }], updatedAt: 'old' };
     const messages = [
       createMessage({
-        compressedMessages: [],
-        compressedStateMessages: [activatorRow('lobe-task')],
-        role: 'compressedGroup',
-      } as any),
-    ];
-
-    expect(extractActivatedToolIdsFromMessages(messages)).toEqual(['lobe-task']);
-  });
-
-  it('restores skills activated by members the read path left out', () => {
-    const messages = [
-      createMessage({
-        compressedStateMessages: [
+        compressedMessages: [
+          createToolMessage({
+            plugin: { apiName: 'activateTools', identifier: 'lobe-activator' },
+            pluginState: { activatedTools: [{ identifier: 'lobe-task' }] },
+          } as any),
           createToolMessage({
             plugin: { apiName: 'activateSkill', identifier: 'lobe-skills' },
             pluginState: { id: 'skl_old', name: 'xlsx' },
           } as any),
+          createToolMessage({ pluginState: { todos } }),
         ],
         role: 'compressedGroup',
       } as any),
     ];
 
+    expect(extractActivatedToolIdsFromMessages(messages)).toEqual(['lobe-task']);
     expect(extractActivatedSkillsFromMessages(messages)).toEqual([
       { description: undefined, id: 'skl_old', name: 'xlsx' },
     ]);
-  });
-
-  it('lets a newer compressedMessages TODO state win over an omitted one', () => {
-    const older = { items: [{ status: 'todo', text: 'old' }], updatedAt: 'old' };
-    const newer = { items: [{ status: 'completed', text: 'new' }], updatedAt: 'new' };
-    const messages = [
-      createMessage({
-        compressedMessages: [createToolMessage({ pluginState: { todos: newer } })],
-        compressedStateMessages: [createToolMessage({ pluginState: { todos: older } })],
-        role: 'compressedGroup',
-      } as any),
-    ];
-
-    expect(extractTodosFromMessages(messages)).toEqual(newer);
+    expect(extractTodosFromMessages(messages)).toEqual(todos);
   });
 });

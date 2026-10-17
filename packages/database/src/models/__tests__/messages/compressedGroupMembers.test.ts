@@ -168,21 +168,20 @@ describe('MessageModel.query compression group member cap', () => {
       const result = await messageModel.query({ topicId });
       const node = result.find((m) => m.role === 'compressedGroup') as any;
 
-      expect(node.compressedMessages.map((m: any) => m.id)).not.toContain(idOf(1));
-      expect(node.compressedStateMessages).toEqual([
-        {
-          id: idOf(1),
-          plugin: { apiName: 'activateTools', identifier: 'lobe-activator', type: 'default' },
-          pluginState: { activatedTools: [{ identifier: 'lobe-task' }] },
-          role: 'tool',
-        },
-        {
-          id: idOf(2),
-          plugin: { apiName: 'writeTodos', identifier: 'lobe-agent', type: 'default' },
-          pluginState: { todos: { items: [{ status: 'todo', text: 'ship it' }] } },
-          role: 'tool',
-        },
-      ]);
+      // Kept as flat tool rows ahead of the hydrated slice, where every released
+      // client's runtime selectors already look for them.
+      const stateRows = node.compressedMessages.filter((m: any) => m.role === 'tool');
+      expect(stateRows.map((m: any) => m.id)).toEqual([idOf(1), idOf(2)]);
+      expect(node.compressedMessages.slice(0, 2)).toEqual(stateRows);
+      expect(stateRows[0]).toMatchObject({
+        content: '',
+        plugin: { apiName: 'activateTools', identifier: 'lobe-activator', type: 'default' },
+        pluginState: { activatedTools: [{ identifier: 'lobe-task' }] },
+      });
+      expect(stateRows[1]).toMatchObject({
+        plugin: { apiName: 'writeTodos', identifier: 'lobe-agent', type: 'default' },
+        pluginState: { todos: { items: [{ status: 'todo', text: 'ship it' }] } },
+      });
     });
 
     it('should not add state messages when nothing was omitted', async () => {
@@ -209,7 +208,8 @@ describe('MessageModel.query compression group member cap', () => {
       const result = await messageModel.query({ topicId });
       const node = result.find((m) => m.role === 'compressedGroup') as any;
 
-      expect(node.compressedStateMessages).toBeUndefined();
+      // The single tool row is hydrated as a normal member, not duplicated.
+      expect(node.compressedMessages.map((m: any) => m.id)).toEqual(['st-small-1', 'st-small-2']);
     });
   });
 
