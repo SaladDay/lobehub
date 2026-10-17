@@ -1,0 +1,89 @@
+'use client';
+
+import { Button, cssVar, Flexbox, Icon, Text, toast } from '@lobehub/ui';
+import { TriangleAlertIcon } from 'lucide-react';
+import { memo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { describeError } from './errorMessage';
+import { type SandboxEnvironment, useEnvironmentActions, useInstances } from './useEnvironmentData';
+
+interface RebuildNoticeProps {
+  /** Only the environment's owner can add a copy to it. */
+  editable: boolean;
+  environment: SandboxEnvironment;
+}
+
+/**
+ * A private environment whose directories are still on the workspace's public
+ * drive, from before members had drives of their own.
+ *
+ * Every member can reach the public drive, and an environment directory's
+ * home holds whatever credentials its sessions left there — so those
+ * directories are hidden on it and no longer run in. Private environments now
+ * keep their directories on the owner's personal drive; this says so, and
+ * initializes a new copy there in one click.
+ */
+const RebuildNotice = memo<RebuildNoticeProps>(({ editable, environment }) => {
+  const { t } = useTranslation('setting');
+  const { data } = useInstances();
+  const actions = useEnvironmentActions();
+  const [rebuilding, setRebuilding] = useState(false);
+
+  const legacy = (data?.instances ?? []).filter(
+    (instance) => instance.environmentId === environment.id && instance.rebuildRequired,
+  );
+  if (legacy.length === 0) return null;
+
+  const rebuild = async () => {
+    setRebuilding(true);
+    try {
+      await actions.rebuildOnOwnDrive(environment.id);
+      toast.success(t('environments.instances.rebuildPersonalStarted'));
+    } catch (error) {
+      toast.error(describeError(error, t, t('environments.instances.rebuildPersonalFailed')));
+    } finally {
+      setRebuilding(false);
+    }
+  };
+
+  return (
+    <Flexbox
+      gap={8}
+      padding={12}
+      style={{
+        background: cssVar.colorWarningBg,
+        borderRadius: cssVar.borderRadiusLG,
+        marginBlockEnd: 12,
+      }}
+    >
+      <Flexbox horizontal align={'flex-start'} gap={8}>
+        <Icon
+          icon={TriangleAlertIcon}
+          size={14}
+          style={{ color: cssVar.colorWarning, flex: 'none', marginBlockStart: 3 }}
+        />
+        <Text fontSize={13} style={{ color: cssVar.colorWarningText }}>
+          {t('environments.instances.rebuildPersonalDesc', {
+            count: legacy.length,
+            names: legacy.map((instance) => instance.workingDirectory).join(', '),
+          })}
+        </Text>
+      </Flexbox>
+      {editable && (
+        <Button
+          loading={rebuilding}
+          size={'small'}
+          style={{ alignSelf: 'flex-start' }}
+          onClick={rebuild}
+        >
+          {t('environments.instances.rebuildPersonal')}
+        </Button>
+      )}
+    </Flexbox>
+  );
+});
+
+RebuildNotice.displayName = 'RebuildNotice';
+
+export default RebuildNotice;
