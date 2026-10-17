@@ -229,6 +229,12 @@ export interface UIChatMessage {
    * hydrates the newest ones (see `MAX_COMPRESSED_GROUP_MEMBERS`).
    */
   compressedMessagesOmitted?: number;
+  /**
+   * Flat `tool` rows (plugin + pluginState only) of omitted compression members
+   * whose state later runs restore: activated skills / tools and todos. Kept
+   * out of `compressedMessages` so the display never renders them.
+   */
+  compressedStateMessages?: UIChatMessage[];
   content: string;
   /**
    * Character length of the STORED tool result body, kept when the read path

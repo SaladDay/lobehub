@@ -101,7 +101,12 @@ import { searchableMessage } from '../utils/searchableMessage';
 import { notShareVisitorMessage, notShareVisitorTopicRef } from '../utils/shareVisitor';
 import { isTrashed, restoreStamp, type SoftDeleteOptions, trashStamp } from '../utils/softDelete';
 import { buildWorkspacePayload, buildWorkspaceWhere } from '../utils/workspace';
-import { buildMessageGroupNode, planMessageGroupHydration } from './messageGroupNodes';
+import {
+  buildMessageGroupNode,
+  compressedStateMarkerColumns,
+  loadCompressedStateRows,
+  planMessageGroupHydration,
+} from './messageGroupNodes';
 import { recomputeTopicUsage } from './topicUsage';
 import { WorkModel } from './work';
 
@@ -694,6 +699,7 @@ const VISITOR_MESSAGE_ALLOWED_KEYS = [
   'performance',
   'observationId',
   'traceId',
+  'compressedMessagesOmitted',
 ] as const satisfies readonly (keyof UIChatMessage)[];
 
 type VisitorAllowedKey = (typeof VISITOR_MESSAGE_ALLOWED_KEYS)[number];
@@ -1003,6 +1009,11 @@ export const toVisitorMessage = (
     // would leave the creator's identity on everything inside it.
     ...(message.compressedMessages && {
       compressedMessages: message.compressedMessages.map((nested) =>
+        toVisitorMessage(nested, options),
+      ),
+    }),
+    ...(message.compressedStateMessages && {
+      compressedStateMessages: message.compressedStateMessages.map((nested) =>
         toVisitorMessage(nested, options),
       ),
     }),
@@ -2871,9 +2882,11 @@ export class MessageModel {
             favorite: messages.favorite,
             id: messages.id,
             messageGroupId: messages.messageGroupId,
+            ...compressedStateMarkerColumns,
             role: messages.role,
           })
           .from(messages)
+          .leftJoin(messagePlugins, eq(messagePlugins.id, messages.id))
           .where(
             and(
               // The parent topic has already been classified by the caller
@@ -2896,18 +2909,22 @@ export class MessageModel {
     // `MAX_COMPRESSED_GROUP_MEMBERS`) plus the pinned ones.
     const plan = planMessageGroupHydration(groups, groupMessageRecords);
 
-    // 3. Query full message data using queryByIds (reuses all transformation logic)
-    const fullMessages = await runTimedStage(
-      timing,
-      'db.message.messageGroups.queryByIds',
-      () =>
-        this.queryByIds(plan.idsToHydrate, { allowShareVisitor: includeVisitor, postProcessUrl }),
-      { messageCount: plan.idsToHydrate.length, totalMemberCount: groupMessageRecords.length },
-    );
+    // 3. Query full message data using queryByIds (reuses all transformation logic),
+    // and only the plugin state of omitted members that carry runtime state
+    const [fullMessages, stateRows] = await Promise.all([
+      runTimedStage(
+        timing,
+        'db.message.messageGroups.queryByIds',
+        () =>
+          this.queryByIds(plan.idsToHydrate, { allowShareVisitor: includeVisitor, postProcessUrl }),
+        { messageCount: plan.idsToHydrate.length, totalMemberCount: groupMessageRecords.length },
+      ),
+      loadCompressedStateRows(this.db, plan.stateIds),
+    ]);
 
     // 4. Build MessageGroup nodes
     const messageMap = new Map(fullMessages.map((m) => [m.id, m]));
-    return groups.map((group) => buildMessageGroupNode(group, plan, messageMap));
+    return groups.map((group) => buildMessageGroupNode(group, plan, messageMap, stateRows));
   };
 
   /**

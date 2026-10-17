@@ -119,7 +119,8 @@ interface ToolInvocation {
  *    FlatListBuilder.createAssistantGroupMessage). Without this branch,
  *    cross-turn skill activations are invisible to later runs.
  *    `compressedGroup` nodes keep their members on `compressedMessages` in
- *    the same flat-list shape, so recurse into them.
+ *    the same flat-list shape (and the state-bearing rows of omitted members
+ *    on `compressedStateMessages`), so recurse into both.
  */
 const collectToolInvocations = (msg: UIChatMessage): ToolInvocation[] => {
   if (msg.role === 'tool') {
@@ -144,9 +145,12 @@ const collectToolInvocations = (msg: UIChatMessage): ToolInvocation[] => {
     }
   }
 
-  const { compressedMessages } = msg;
-  if (Array.isArray(compressedMessages)) {
-    for (const compressed of compressedMessages) {
+  // `compressedStateMessages` holds the state-bearing tool rows of members the
+  // read path left out of `compressedMessages` (oldest first, so before them).
+  const { compressedMessages, compressedStateMessages } = msg;
+  for (const nested of [compressedStateMessages, compressedMessages]) {
+    if (!Array.isArray(nested)) continue;
+    for (const compressed of nested) {
       invocations.push(...collectToolInvocations(compressed));
     }
   }
@@ -173,9 +177,7 @@ export const normalizeTodosState = (
   if (!items || !items.every(isTodoItem)) return undefined;
 
   const updatedAt =
-    isPlainRecord(value) && isNonEmptyString(value.updatedAt)
-      ? value.updatedAt
-      : fallbackUpdatedAt;
+    isPlainRecord(value) && isNonEmptyString(value.updatedAt) ? value.updatedAt : fallbackUpdatedAt;
 
   return { items, updatedAt };
 };

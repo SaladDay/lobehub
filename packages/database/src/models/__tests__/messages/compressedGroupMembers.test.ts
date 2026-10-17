@@ -3,7 +3,7 @@ import { MessageGroupType } from '@lobechat/types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../../core/getTestDB';
-import { messageGroups, messages, topics, users } from '../../../schemas';
+import { messageGroups, messagePlugins, messages, topics, users } from '../../../schemas';
 import type { LobeChatDatabase } from '../../../type';
 import { MessageModel } from '../../message';
 import {
@@ -101,6 +101,105 @@ describe('MessageModel.query compression group member cap', () => {
 
       expect(node.compressedMessagesOmitted).toBeUndefined();
       expect(node.compressedMessages).toHaveLength(2);
+    });
+  });
+
+  describe('state-bearing members outside the hydrated slice', () => {
+    it('should keep only the plugin state of omitted members that later runs restore', async () => {
+      const total = MAX_COMPRESSED_GROUP_MEMBERS + 21;
+      const base = Date.parse('2024-01-01T00:00:00Z');
+      const idOf = (i: number) => `st-${String(i).padStart(4, '0')}`;
+      // Indices 1..3 are omitted tool rows: an activator call, a TODO write
+      // from another tool, and a plain tool result that carries no state.
+      const toolRows = new Set([1, 2, 3]);
+      await serverDB.insert(messages).values(
+        Array.from({ length: total }, (_, i) => ({
+          content: `member ${i}`,
+          createdAt: new Date(base + i * 1000),
+          id: idOf(i),
+          role: toolRows.has(i) ? 'tool' : i % 2 === 0 ? 'user' : 'assistant',
+          topicId,
+          userId,
+        })),
+      );
+      await serverDB.insert(messagePlugins).values([
+        {
+          apiName: 'activateTools',
+          id: idOf(1),
+          identifier: 'lobe-activator',
+          state: { activatedTools: [{ identifier: 'lobe-task' }] },
+          userId,
+        },
+        {
+          apiName: 'writeTodos',
+          id: idOf(2),
+          identifier: 'lobe-agent',
+          state: { todos: { items: [{ status: 'todo', text: 'ship it' }] } },
+          userId,
+        },
+        {
+          apiName: 'search',
+          id: idOf(3),
+          identifier: 'lobe-web-browsing',
+          state: { results: [] },
+          userId,
+        },
+      ]);
+      await serverDB.insert(messageGroups).values({
+        content: 'Summary',
+        createdAt: new Date(base + total * 1000),
+        id: 'state-group',
+        topicId,
+        type: MessageGroupType.Compression,
+        userId,
+      });
+      await serverDB.update(messages).set({ messageGroupId: 'state-group' });
+
+      const result = await messageModel.query({ topicId });
+      const node = result.find((m) => m.role === 'compressedGroup') as any;
+
+      expect(node.compressedMessages.map((m: any) => m.id)).not.toContain(idOf(1));
+      expect(node.compressedStateMessages).toEqual([
+        {
+          id: idOf(1),
+          plugin: { apiName: 'activateTools', identifier: 'lobe-activator', type: 'default' },
+          pluginState: { activatedTools: [{ identifier: 'lobe-task' }] },
+          role: 'tool',
+        },
+        {
+          id: idOf(2),
+          plugin: { apiName: 'writeTodos', identifier: 'lobe-agent', type: 'default' },
+          pluginState: { todos: { items: [{ status: 'todo', text: 'ship it' }] } },
+          role: 'tool',
+        },
+      ]);
+    });
+
+    it('should not add state messages when nothing was omitted', async () => {
+      await serverDB.insert(messages).values([
+        { content: 'a', id: 'st-small-1', role: 'user', topicId, userId },
+        { content: 'b', id: 'st-small-2', role: 'tool', topicId, userId },
+      ]);
+      await serverDB.insert(messagePlugins).values({
+        apiName: 'activateTools',
+        id: 'st-small-2',
+        identifier: 'lobe-activator',
+        state: { activatedTools: [{ identifier: 'lobe-task' }] },
+        userId,
+      });
+      await serverDB.insert(messageGroups).values({
+        content: 'Summary',
+        id: 'st-small-group',
+        topicId,
+        type: MessageGroupType.Compression,
+        userId,
+      });
+      await serverDB.update(messages).set({ messageGroupId: 'st-small-group' });
+
+      const result = await messageModel.query({ topicId });
+      const node = result.find((m) => m.role === 'compressedGroup') as any;
+
+      expect(node.compressedStateMessages).toBeUndefined();
     });
   });
 

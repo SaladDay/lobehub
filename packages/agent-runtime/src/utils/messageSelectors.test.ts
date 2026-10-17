@@ -107,10 +107,12 @@ describe('TODO state selectors', () => {
   const item = { status: 'processing' as const, text: 'Ship the fix' };
 
   it('normalizes canonical and legacy states, including empty clear tombstones', () => {
-    expect(normalizeTodosState({ items: [item], updatedAt: 'canonical-time' }, 'fallback')).toEqual({
-      items: [item],
-      updatedAt: 'canonical-time',
-    });
+    expect(normalizeTodosState({ items: [item], updatedAt: 'canonical-time' }, 'fallback')).toEqual(
+      {
+        items: [item],
+        updatedAt: 'canonical-time',
+      },
+    );
     expect(normalizeTodosState([item], 'fallback')).toEqual({
       items: [item],
       updatedAt: 'fallback',
@@ -129,7 +131,9 @@ describe('TODO state selectors', () => {
   it('rejects alternate fields and malformed items', () => {
     expect(normalizeTodosState({ tasks: [item] }, 'fallback')).toBeUndefined();
     expect(normalizeTodosState({ todoList: [item] }, 'fallback')).toBeUndefined();
-    expect(normalizeTodosState({ items: [{ status: 'unknown', text: 'bad' }] }, 'fallback')).toBeUndefined();
+    expect(
+      normalizeTodosState({ items: [{ status: 'unknown', text: 'bad' }] }, 'fallback'),
+    ).toBeUndefined();
     expect(normalizeTodosState({ items: [{ status: 'todo' }] }, 'fallback')).toBeUndefined();
   });
 
@@ -537,5 +541,57 @@ describe('extractActivatedToolIdsFromMessages', () => {
     ];
 
     expect(extractActivatedToolIdsFromMessages(messages)).toBeUndefined();
+  });
+});
+
+describe('compressedGroup compressedStateMessages', () => {
+  const activatorRow = (identifier: string) =>
+    createToolMessage({
+      plugin: { apiName: 'activateTools', identifier: 'lobe-activator' },
+      pluginState: { activatedTools: [{ identifier }] },
+    } as any);
+
+  it('restores tools activated by members the read path left out', () => {
+    const messages = [
+      createMessage({
+        compressedMessages: [],
+        compressedStateMessages: [activatorRow('lobe-task')],
+        role: 'compressedGroup',
+      } as any),
+    ];
+
+    expect(extractActivatedToolIdsFromMessages(messages)).toEqual(['lobe-task']);
+  });
+
+  it('restores skills activated by members the read path left out', () => {
+    const messages = [
+      createMessage({
+        compressedStateMessages: [
+          createToolMessage({
+            plugin: { apiName: 'activateSkill', identifier: 'lobe-skills' },
+            pluginState: { id: 'skl_old', name: 'xlsx' },
+          } as any),
+        ],
+        role: 'compressedGroup',
+      } as any),
+    ];
+
+    expect(extractActivatedSkillsFromMessages(messages)).toEqual([
+      { description: undefined, id: 'skl_old', name: 'xlsx' },
+    ]);
+  });
+
+  it('lets a newer compressedMessages TODO state win over an omitted one', () => {
+    const older = { items: [{ status: 'todo', text: 'old' }], updatedAt: 'old' };
+    const newer = { items: [{ status: 'completed', text: 'new' }], updatedAt: 'new' };
+    const messages = [
+      createMessage({
+        compressedMessages: [createToolMessage({ pluginState: { todos: newer } })],
+        compressedStateMessages: [createToolMessage({ pluginState: { todos: older } })],
+        role: 'compressedGroup',
+      } as any),
+    ];
+
+    expect(extractTodosFromMessages(messages)).toEqual(newer);
   });
 });

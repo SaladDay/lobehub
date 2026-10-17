@@ -1,8 +1,11 @@
 import { parse } from '@lobechat/conversation-flow';
 import type { UIChatMessage } from '@lobechat/types';
 import { MessageGroupType } from '@lobechat/types';
+import { inArray, sql } from 'drizzle-orm';
 
 import type { MessageGroupItem } from '../schemas';
+import { messagePlugins } from '../schemas';
+import type { LobeChatDatabase } from '../type';
 
 /**
  * Most members a `compressedGroup` node hydrates into `compressedMessages`.
@@ -10,17 +13,42 @@ import type { MessageGroupItem } from '../schemas';
  * every read of the topic used to load each of them in full and run them
  * through `parse()` — one such read of a 5k-member group held a server
  * instance for ~2 minutes and stalled every request sharing it. The newest
- * members are kept (aligned to a round start); pinned members load regardless.
+ * members are kept (aligned to a round start); pinned members load regardless,
+ * and omitted members that carry runtime state keep their plugin state.
  */
 export const MAX_COMPRESSED_GROUP_MEMBERS = 300;
 
+/**
+ * Tool identifiers whose `pluginState` later runs read back from history to
+ * restore activated skills and tools (see `extractActivatedSkillsFromMessages`
+ * / `extractActivatedToolIdsFromMessages` in `@lobechat/agent-runtime`).
+ * Literal copies — the tool packages are not database dependencies.
+ */
+const STATE_BEARING_TOOL_IDENTIFIERS = new Set(['lobe-activator', 'lobe-skills']);
+
+/**
+ * Columns the light member select adds (it left-joins `message_plugins`), so
+ * an omitted member that carries runtime state is known without loading it.
+ */
+export const compressedStateMarkerColumns = {
+  carriesTodos: sql<boolean>`jsonb_typeof(${messagePlugins.state} -> 'todos') is not null`,
+  pluginIdentifier: messagePlugins.identifier,
+};
+
 /** The light per-member row read before any member is hydrated. */
 export interface MessageGroupMemberRecord {
+  carriesTodos: boolean | null;
   favorite: boolean | null;
   id: string;
   messageGroupId: string | null;
+  pluginIdentifier: string | null;
   role: string | null;
 }
+
+const carriesRuntimeState = (record: MessageGroupMemberRecord) =>
+  record.role === 'tool' &&
+  (record.carriesTodos === true ||
+    (!!record.pluginIdentifier && STATE_BEARING_TOOL_IDENTIFIERS.has(record.pluginIdentifier)));
 
 type MessageGroupRow = Pick<
   MessageGroupItem,
@@ -51,6 +79,10 @@ export interface MessageGroupHydrationPlan {
   idsToHydrate: string[];
   /** All members per group, ascending. */
   recordsByGroup: Map<string, MessageGroupMemberRecord[]>;
+  /** Omitted compression members that carry runtime state, per group, ascending. */
+  stateByGroup: Map<string, MessageGroupMemberRecord[]>;
+  /** Every id whose plugin state `loadCompressedStateRows` must load. */
+  stateIds: string[];
 }
 
 export const planMessageGroupHydration = (
@@ -66,17 +98,58 @@ export const planMessageGroupHydration = (
   }
 
   const hydratedByGroup = new Map<string, MessageGroupMemberRecord[]>();
+  const stateByGroup = new Map<string, MessageGroupMemberRecord[]>();
   const ids = new Set<string>();
+  const stateIds: string[] = [];
   for (const group of groups) {
     const groupRecords = recordsByGroup.get(group.id) ?? [];
     const isCompression = group.type === MessageGroupType.Compression;
     const hydrated = isCompression ? selectCompressedGroupMembers(groupRecords) : groupRecords;
     hydratedByGroup.set(group.id, hydrated);
     for (const record of hydrated) ids.add(record.id);
-    if (isCompression) for (const record of groupRecords) if (record.favorite) ids.add(record.id);
+    if (!isCompression) continue;
+
+    for (const record of groupRecords) if (record.favorite) ids.add(record.id);
+    const omitted = groupRecords.slice(0, groupRecords.length - hydrated.length);
+    const stateRecords = omitted.filter(carriesRuntimeState);
+    stateByGroup.set(group.id, stateRecords);
+    for (const record of stateRecords) stateIds.push(record.id);
   }
 
-  return { hydratedByGroup, idsToHydrate: [...ids], recordsByGroup };
+  return { hydratedByGroup, idsToHydrate: [...ids], recordsByGroup, stateByGroup, stateIds };
+};
+
+export interface CompressedStateRow {
+  apiName: string | null;
+  id: string;
+  identifier: string | null;
+  state: unknown;
+  type: string | null;
+}
+
+/**
+ * Plugin payload + state of the omitted state-bearing members — no message
+ * content, which is what makes hydrating every member expensive. The ids come
+ * from the caller's scoped member select.
+ */
+export const loadCompressedStateRows = async (
+  db: LobeChatDatabase,
+  ids: string[],
+): Promise<Map<string, CompressedStateRow>> => {
+  if (ids.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      apiName: messagePlugins.apiName,
+      id: messagePlugins.id,
+      identifier: messagePlugins.identifier,
+      state: messagePlugins.state,
+      type: messagePlugins.type,
+    })
+    .from(messagePlugins)
+    .where(inArray(messagePlugins.id, ids));
+
+  return new Map(rows.map((row) => [row.id, row]));
 };
 
 const toSnapshot = (m: UIChatMessage) => ({
@@ -98,6 +171,7 @@ export const buildMessageGroupNode = (
   group: MessageGroupRow,
   plan: MessageGroupHydrationPlan,
   messageMap: Map<string, UIChatMessage>,
+  stateRows: Map<string, CompressedStateRow> = new Map(),
 ): UIChatMessage => {
   const records = plan.recordsByGroup.get(group.id) ?? [];
   const hydrated = plan.hydratedByGroup.get(group.id) ?? [];
@@ -122,10 +196,24 @@ export const buildMessageGroupNode = (
     .filter(Boolean)
     .map((m) => toSnapshot(m!));
   const omittedCount = records.length - hydrated.length;
+  const compressedStateMessages = (plan.stateByGroup.get(group.id) ?? [])
+    .map((record) => stateRows.get(record.id))
+    .filter(Boolean)
+    .map((row) => ({
+      id: row!.id,
+      plugin: {
+        apiName: row!.apiName,
+        identifier: row!.identifier,
+        type: row!.type,
+      },
+      pluginState: row!.state,
+      role: 'tool',
+    })) as unknown as UIChatMessage[];
 
   return {
     compressedMessages: parse(groupMsgs).flatList,
     ...(omittedCount > 0 && { compressedMessagesOmitted: omittedCount }),
+    ...(compressedStateMessages.length > 0 && { compressedStateMessages }),
     content: group.content,
     createdAt: group.createdAt,
     id: group.id,
