@@ -375,14 +375,18 @@ const InstanceRow = memo<InstanceRowProps>(
             <Text ellipsis fontSize={13} style={{ flex: '0 1 auto', minWidth: 0 }} weight={500}>
               {instance.name}
             </Text>
-            <Text
-              ellipsis
-              fontSize={12}
-              style={{ flex: '0 1000 auto', minWidth: 0 }}
-              type={'secondary'}
-            >
-              {instance.workingDirectory}
-            </Text>
+            {/* The folder only when it says something the label does not: a
+                copy is named after its folder until someone renames it. */}
+            {instance.workingDirectory !== instance.name && (
+              <Text
+                ellipsis
+                fontSize={12}
+                style={{ flex: '0 1000 auto', minWidth: 0 }}
+                type={'secondary'}
+              >
+                {instance.workingDirectory}
+              </Text>
+            )}
           </Flexbox>
           {/* Whether a conversation is in this instance right now — the one
         thing about a row that changes while someone is looking at it, and what
@@ -501,7 +505,12 @@ const InstanceRow = memo<InstanceRowProps>(
               // entry would be grey with nothing saying why.
               <Tooltip title={t(copyEntryTitle(copyBlocked))}>
                 <span style={{ cursor: 'not-allowed', display: 'inline-flex' }}>
-                  <ActionIcon disabled icon={CopyIcon} size={'small'} />
+                  <ActionIcon
+                    disabled
+                    aria-label={t(copyEntryTitle(copyBlocked))}
+                    icon={CopyIcon}
+                    size={'small'}
+                  />
                 </span>
               </Tooltip>
             ) : (

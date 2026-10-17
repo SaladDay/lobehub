@@ -4397,11 +4397,8 @@ When I am ___, I need ___
   'tab.drive': 'Storage',
   'drive.tabs.public': 'Public drive',
   'drive.tabs.personal': 'Personal drive',
-  'drive.desc.public':
-    'Shared by every member of this workspace: everyone can browse it and work in its folders. Published environments keep their directories here.',
-  'drive.desc.workspacePersonal':
-    'Yours alone in this workspace: no other member can see or use it, and admins only see how much it holds. Your private environments keep their directories here.',
-  'drive.desc.personal': 'Your drive. Files in its folders are kept across sandbox sessions.',
+  'drive.scope.public': 'Visible to all members',
+  'drive.scope.personal': 'Only you',
   'drive.usage.title': 'Storage usage',
   'drive.usage.poolTitle': 'Workspace storage pool',
   'drive.usage.used': '{{used}} of {{total}} used',
@@ -4432,21 +4429,25 @@ When I am ___, I need ___
   'drive.explorer.newFolder': 'New folder',
   'drive.explorer.rename': 'Rename',
   'drive.explorer.delete': 'Delete',
+  'drive.explorer.moreActions': 'More actions',
   'drive.explorer.deleteTitle': 'Delete “{{name}}”?',
   'drive.explorer.deleteFolderContent':
     'The folder and everything in it are removed from the drive. Conversations working in it switch to a temporary sandbox.',
   'drive.explorer.deleteFileContent': 'The file is removed from the drive.',
   'drive.explorer.readOnly': 'Environment directories are read-only',
-  'drive.explorer.readOnlyTag': 'Read-only',
   'drive.explorer.readOnlyHint':
     'Only its own sandbox sessions write to an environment directory, so you can browse it here but not change it.',
   'drive.explorer.empty': 'This folder is empty',
+  'drive.explorer.emptyRoot.public':
+    'No folders on the public drive yet. Create one to work in it with your team.',
+  'drive.explorer.emptyRoot.personal':
+    'Your drive is empty. Create a folder, then pick it as a conversation’s working folder.',
   'drive.explorer.loadFailed': 'Could not load this folder.',
   'environments.instances.needsDrive':
     'Copies are folders on a drive, and this account has no drive yet.',
   'environments.instances.openDriveSettings': 'Go to Storage settings',
   'environments.instances.rebuildPersonalDesc':
-    '{{count}} directory of this private environment ({{names}}) is still on the workspace’s public drive. Private environments now keep their directories on your personal drive, so the old one is hidden and can no longer be used. Rebuild it on your personal drive.',
+    '{{names}} is still on the public drive and is hidden. Private environments now keep their folders on your personal drive.',
   'environments.instances.rebuildPersonal': 'Rebuild on personal drive',
   'environments.instances.rebuildPersonalStarted': 'Building a new copy on your personal drive',
   'environments.instances.rebuildPersonalFailed':

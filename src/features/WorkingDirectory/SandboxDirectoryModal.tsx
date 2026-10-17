@@ -1,7 +1,16 @@
 'use client';
 
 import type { SandboxDrive } from '@lobechat/builtin-tool-cloud-sandbox';
-import { Center, createModal, Flexbox, Icon, type ModalInstance, Segmented, Spin, useModalContext } from '@lobehub/ui';
+import {
+  Center,
+  createModal,
+  Flexbox,
+  Icon,
+  type ModalInstance,
+  Segmented,
+  Spin,
+  useModalContext,
+} from '@lobehub/ui';
 import { t } from 'i18next';
 import { LockIcon, UsersIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -60,7 +69,6 @@ const SandboxDirectoryContent = ({
     drive,
     isWorkspace,
     onPickInstance,
-    onSwitchDrive: isWorkspace ? setDrive : undefined,
     topicId,
   });
 
@@ -97,19 +105,14 @@ const SandboxDirectoryContent = ({
         />
       )}
       {/* Keyed on the drive, so its navigation starts over: a folder on one
-          drive means nothing on the other. */}
+          drive means nothing on the other. No description: the drive switch
+          and the breadcrumb already say where this is. */}
       <DirectoryBrowser
         defaultPath={startPath}
+        description={null}
         key={drive}
         loading={false}
         source={source}
-        description={tDevice(
-          isWorkspace
-            ? drive === 'public'
-              ? 'workingDirectory.drive.browseDescriptionShared'
-              : 'workingDirectory.drive.browseDescriptionPersonal'
-            : 'workingDirectory.drive.browseDescription',
-        )}
         onCancel={close}
         onSelect={(path) => {
           close();

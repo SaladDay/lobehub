@@ -1,8 +1,18 @@
 'use client';
 
 import type { SandboxDrive } from '@lobechat/builtin-tool-cloud-sandbox';
-import { ActionIcon, Button, confirmModal, cssVar, Flexbox, Tag, Text, toast } from '@lobehub/ui';
-import { PackageIcon, PencilIcon, Trash2Icon } from 'lucide-react';
+import {
+  ActionIcon,
+  Button,
+  confirmModal,
+  DropdownMenu,
+  Flexbox,
+  Icon,
+  Tag,
+  Text,
+  toast,
+} from '@lobehub/ui';
+import { MoreHorizontalIcon, PackageIcon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR, { useSWRConfig } from 'swr';
@@ -50,8 +60,6 @@ export interface UseSandboxDirectorySourceOptions {
    * necessarily the one being browsed.
    */
   onPickInstance: (instanceId: string, drive: SandboxDrive) => void;
-  /** Move the browser to another drive; offered where a notice points there. */
-  onSwitchDrive?: (drive: SandboxDrive) => void;
   /** Whose run the occupancy answers are relative to; the conversation's own. */
   topicId?: string;
 }
@@ -72,14 +80,14 @@ export interface UseSandboxDirectorySourceOptions {
  * initialize-from offer on each drive lists only the environments whose
  * directories belong there. A private environment's directory still on the
  * public drive, from before personal drives, is hidden there by the server;
- * its owner is told here to rebuild it on their personal drive.
+ * its owner hears about it on the environment's page, not here — picking a
+ * folder is not the moment to sort out an old one.
  */
 export const useSandboxDirectorySource = ({
   agentIsPublic,
   drive,
   isWorkspace,
   onPickInstance,
-  onSwitchDrive,
   topicId,
 }: UseSandboxDirectorySourceOptions): DirectorySource => {
   const { t } = useTranslation(['device', 'setting', 'common']);
@@ -119,57 +127,73 @@ export const useSandboxDirectorySource = ({
       }
     };
 
+    const renameFolder = (entry: { name: string; path: string }) =>
+      openRenameFolderModal({
+        currentName: entry.name,
+        onSubmit: async (name) => {
+          try {
+            await sandboxStorageService.renameFile({
+              drive,
+              newPath: joinDrivePath(driveParentPath(entry.path) ?? '', name),
+              path: entry.path,
+            });
+            await refreshFolders();
+          } catch (error) {
+            return describeError(error, tSetting, t('workingDirectory.drive.renameFailed'));
+          }
+        },
+      });
+
+    const deleteFolder = (entry: { name: string; path: string }) =>
+      confirmModal({
+        cancelText: t('cancel', { ns: 'common' }),
+        content: t('workingDirectory.drive.deleteConfirmContent'),
+        okButtonProps: { danger: true },
+        okText: t('workingDirectory.drive.delete'),
+        onOk: async () => {
+          try {
+            await sandboxStorageService.removeFile({ drive, path: entry.path, recursive: true });
+            await refreshFolders();
+          } catch (error) {
+            failed(error);
+          }
+        },
+        title: t('workingDirectory.drive.deleteConfirmTitle', { name: entry.name }),
+      });
+
+    // One menu rather than a pair of icons: the row is for picking, and what
+    // else can be done to a folder stays one click away without competing.
     const folderActions = (entry: { name: string; path: string }) => (
-      <Flexbox horizontal gap={2} onClick={(event) => event.stopPropagation()}>
-        <ActionIcon
-          icon={PencilIcon}
-          size={'small'}
-          title={t('workingDirectory.drive.rename')}
-          onClick={() =>
-            openRenameFolderModal({
-              currentName: entry.name,
-              onSubmit: async (name) => {
-                try {
-                  await sandboxStorageService.renameFile({
-                    drive,
-                    newPath: joinDrivePath(driveParentPath(entry.path) ?? '', name),
-                    path: entry.path,
-                  });
-                  await refreshFolders();
-                } catch (error) {
-                  return describeError(error, tSetting, t('workingDirectory.drive.renameFailed'));
-                }
-              },
-            })
-          }
-        />
-        <ActionIcon
-          icon={Trash2Icon}
-          size={'small'}
-          title={t('workingDirectory.drive.delete')}
-          onClick={() =>
-            confirmModal({
-              cancelText: t('cancel', { ns: 'common' }),
-              content: t('workingDirectory.drive.deleteConfirmContent'),
-              okButtonProps: { danger: true },
-              okText: t('workingDirectory.drive.delete'),
-              onOk: async () => {
-                try {
-                  await sandboxStorageService.removeFile({
-                    drive,
-                    path: entry.path,
-                    recursive: true,
-                  });
-                  await refreshFolders();
-                } catch (error) {
-                  failed(error);
-                }
-              },
-              title: t('workingDirectory.drive.deleteConfirmTitle', { name: entry.name }),
-            })
-          }
-        />
-      </Flexbox>
+      <span
+        role={'none'}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <DropdownMenu
+          placement={'bottomRight'}
+          items={[
+            {
+              icon: <Icon icon={PencilIcon} />,
+              key: 'rename',
+              label: t('workingDirectory.drive.rename'),
+              onClick: () => renameFolder(entry),
+            },
+            {
+              danger: true,
+              icon: <Icon icon={Trash2Icon} />,
+              key: 'delete',
+              label: t('workingDirectory.drive.delete'),
+              onClick: () => deleteFolder(entry),
+            },
+          ]}
+        >
+          <ActionIcon
+            aria-label={t('workingDirectory.drive.moreActions')}
+            icon={MoreHorizontalIcon}
+            size={'small'}
+          />
+        </DropdownMenu>
+      </span>
     );
 
     return {
@@ -206,6 +230,7 @@ export const useSandboxDirectorySource = ({
         if (code === 'INSTANCE_READ_ONLY') return 'workingDirectory.drive.readOnly';
       },
       listErrorKey: 'workingDirectory.drive.foldersLoadFailed',
+      rootLabel: t(`workingDirectory.drive.drives.${drive}`),
       renderNewFolderOptions: ({ onChange, value }) => (
         <Flexbox gap={4}>
           <Flexbox horizontal align={'center'} gap={8}>
@@ -263,8 +288,6 @@ export const useSandboxDirectorySource = ({
           ]),
         );
         const listed = instances.data?.instances ?? [];
-        // Hidden on this drive by the server; only their owner sees the rows.
-        const toRebuild = listed.filter((instance) => instance.rebuildRequired);
         const directories = environmentDirectoriesByPath(
           listingPath,
           listed.filter((instance) => !instance.rebuildRequired),
@@ -309,9 +332,7 @@ export const useSandboxDirectorySource = ({
                     </Button>
                   )}
                 </Flexbox>
-              ) : (
-                environment?.name
-              ),
+              ) : undefined,
               disabled: blocked,
               icon: PackageIcon,
               name: entry.name,
@@ -328,8 +349,12 @@ export const useSandboxDirectorySource = ({
               path: entry.path,
               tags: (
                 <Flexbox horizontal align={'center'} gap={4}>
-                  <Tag color={'processing'} size={'small'}>
-                    {t('workingDirectory.drive.environmentBadge')}
+                  {/* Which environment built it, not merely that one did: the
+                      folder's own name is already the row's title. */}
+                  <Tag icon={<Icon icon={PackageIcon} size={12} />} size={'small'}>
+                    {environment?.name && environment.name !== entry.name
+                      ? environment.name
+                      : t('workingDirectory.drive.environmentBadge')}
                   </Tag>
                   {state !== 'ready' && (
                     <Tag color={state === 'failed' ? 'error' : 'warning'} size={'small'}>
@@ -348,33 +373,6 @@ export const useSandboxDirectorySource = ({
           entries,
           error: folders.error,
           hasMore: false,
-          notice:
-            isRoot && toRebuild.length > 0 ? (
-              <Flexbox
-                gap={6}
-                padding={10}
-                style={{
-                  background: cssVar.colorWarningBg,
-                  borderRadius: cssVar.borderRadius,
-                }}
-              >
-                <Text fontSize={12} style={{ color: cssVar.colorWarningText }}>
-                  {t('workingDirectory.drive.rebuildInPersonal', {
-                    count: toRebuild.length,
-                    names: toRebuild.map((instance) => instance.name).join(', '),
-                  })}
-                </Text>
-                {onSwitchDrive && (
-                  <Button
-                    size={'small'}
-                    style={{ alignSelf: 'flex-start' }}
-                    onClick={() => onSwitchDrive('personal')}
-                  >
-                    {t('workingDirectory.drive.openPersonal')}
-                  </Button>
-                )}
-              </Flexbox>
-            ) : undefined,
           isLoading: folders.isLoading || (isRoot && instances.isLoading),
           isLoadingMore: false,
           isRefreshing: folders.isValidating && !folders.isLoading,
@@ -393,7 +391,6 @@ export const useSandboxDirectorySource = ({
     globalMutate,
     isWorkspace,
     onPickInstance,
-    onSwitchDrive,
     t,
     topicId,
     workspaceId,

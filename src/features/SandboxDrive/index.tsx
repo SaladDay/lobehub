@@ -1,7 +1,7 @@
 'use client';
 
 import type { SandboxDrive } from '@lobechat/builtin-tool-cloud-sandbox';
-import { Center, Flexbox, Icon, Spin, Tabs, Text } from '@lobehub/ui';
+import { Center, Flexbox, Icon, Spin, Tabs } from '@lobehub/ui';
 import { LockIcon, UsersIcon } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -50,30 +50,32 @@ const DriveSettings = memo(() => {
   }
 
   return (
-    <Flexbox gap={16} style={{ maxWidth: MAX_WIDTH, width: '100%' }}>
-      <DriveUsage />
-      <Flexbox gap={8}>
-        <Tabs
-          activeKey={active}
-          items={drives.map((key) => ({
-            icon: <Icon icon={key === 'public' ? UsersIcon : LockIcon} />,
-            key,
-            label: t(`drive.tabs.${key}`),
-          }))}
-          onChange={(key) => setActive(key as SandboxDrive)}
-        />
-        <Text fontSize={12} type={'secondary'}>
-          {t(
-            isWorkspace
-              ? active === 'public'
-                ? 'drive.desc.public'
-                : 'drive.desc.workspacePersonal'
-              : 'drive.desc.personal',
-          )}
-        </Text>
-      </Flexbox>
+    <Flexbox gap={12} style={{ maxWidth: MAX_WIDTH, width: '100%' }}>
+      {/* A workspace's drives share one pool, so its meter sits beside the
+          tabs that switch between them, not inside either drive. */}
+      {isWorkspace && (
+        <Flexbox horizontal align={'center'} gap={12} justify={'space-between'} wrap={'wrap'}>
+          <Flexbox flex={'none'}>
+            <Tabs
+              activeKey={active}
+              items={drives.map((key) => ({
+                icon: <Icon icon={key === 'public' ? UsersIcon : LockIcon} />,
+                key,
+                label: t(`drive.tabs.${key}`),
+              }))}
+              onChange={(key) => setActive(key as SandboxDrive)}
+            />
+          </Flexbox>
+          <DriveUsage />
+        </Flexbox>
+      )}
       {/* Keyed on the drive, so a path browsed on one never carries to the other. */}
-      <DriveExplorer drive={active} isWorkspace={isWorkspace} key={active} />
+      <DriveExplorer
+        drive={active}
+        isWorkspace={isWorkspace}
+        key={active}
+        toolbarExtra={isWorkspace ? undefined : <DriveUsage />}
+      />
     </Flexbox>
   );
 });

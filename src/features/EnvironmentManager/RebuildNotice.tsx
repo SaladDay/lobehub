@@ -1,7 +1,6 @@
 'use client';
 
-import { Button, cssVar, Flexbox, Icon, Text, toast } from '@lobehub/ui';
-import { TriangleAlertIcon } from 'lucide-react';
+import { Alert, Button, Text, toast } from '@lobehub/ui';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -48,39 +47,27 @@ const RebuildNotice = memo<RebuildNoticeProps>(({ editable, environment }) => {
   };
 
   return (
-    <Flexbox
-      gap={8}
-      padding={12}
-      style={{
-        background: cssVar.colorWarningBg,
-        borderRadius: cssVar.borderRadiusLG,
-        marginBlockEnd: 12,
-      }}
-    >
-      <Flexbox horizontal align={'flex-start'} gap={8}>
-        <Icon
-          icon={TriangleAlertIcon}
-          size={14}
-          style={{ color: cssVar.colorWarning, flex: 'none', marginBlockStart: 3 }}
-        />
-        <Text fontSize={13} style={{ color: cssVar.colorWarningText }}>
+    <Alert
+      showIcon
+      style={{ marginBlockEnd: 12 }}
+      type={'warning'}
+      variant={'soft'}
+      action={
+        editable ? (
+          <Button loading={rebuilding} size={'small'} onClick={rebuild}>
+            {t('environments.instances.rebuildPersonal')}
+          </Button>
+        ) : undefined
+      }
+      title={
+        <Text fontSize={13} weight={400}>
           {t('environments.instances.rebuildPersonalDesc', {
             count: legacy.length,
             names: legacy.map((instance) => instance.workingDirectory).join(', '),
           })}
         </Text>
-      </Flexbox>
-      {editable && (
-        <Button
-          loading={rebuilding}
-          size={'small'}
-          style={{ alignSelf: 'flex-start' }}
-          onClick={rebuild}
-        >
-          {t('environments.instances.rebuildPersonal')}
-        </Button>
-      )}
-    </Flexbox>
+      }
+    />
   );
 });
 

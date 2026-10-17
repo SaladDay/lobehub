@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
  * on.
  */
 export interface DirectoryEntry {
-  /** Revealed on hover: rename, delete, make a copy. */
+  /** At the row's end: a menu of what can be done to the folder — rename, delete. */
   actions?: ReactNode;
   /** Under the name: why it cannot be opened, or what it is. */
   description?: ReactNode;
@@ -79,6 +79,13 @@ export interface DirectorySource {
     onChange: (options: Record<string, unknown>) => void;
     value: Record<string, unknown>;
   }) => ReactNode;
+  /**
+   * The name of the place being browsed — the drive's — for a source whose
+   * path is browsed rather than typed. Its presence lays the picker out as a
+   * breadcrumb with an inline "new folder" row instead of an address field
+   * with a toolbar.
+   */
+  rootLabel?: string;
   /**
    * Why the folder being browsed cannot be chosen, or `undefined` when it
    * can. A shared drive's root is the one such folder today.

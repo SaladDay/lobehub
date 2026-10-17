@@ -141,12 +141,8 @@ export default {
   'workingDirectory.environment.label': 'Code environment',
   'workingDirectory.environment.none': 'No environment',
   'workingDirectory.drive.title': 'Choose a folder on your drive',
-  'workingDirectory.drive.browseDescription':
-    'Browse your drive and pick the folder this conversation works in. Files in it are kept across conversations.',
-  'workingDirectory.drive.browseDescriptionShared':
-    'Browse the public drive and pick a folder. Its root holds every member’s folders, so it cannot be picked itself.',
-  'workingDirectory.drive.rootNotAllowed':
-    'The public drive’s root cannot be a working folder. Open or create a folder first.',
+  'workingDirectory.drive.rootNotAllowed': 'The drive’s root can’t be a working folder',
+  'workingDirectory.drive.pickFolderFirst': 'Choose a folder first',
   'workingDirectory.drive.environmentBadge': 'Environment',
   'workingDirectory.drive.state.building': 'Building',
   'workingDirectory.drive.state.failed': 'Build failed',
@@ -161,6 +157,7 @@ export default {
   'workingDirectory.drive.renameTitle': 'Rename folder',
   'workingDirectory.drive.renameFailed': 'The folder couldn’t be renamed',
   'workingDirectory.drive.delete': 'Delete',
+  'workingDirectory.drive.moreActions': 'More actions',
   'workingDirectory.drive.deleteConfirmTitle': 'Delete “{{name}}”?',
   'workingDirectory.drive.deleteConfirmContent':
     'Everything in this folder is deleted from the drive, for everyone who can see it. Conversations working in it fall back to a temporary sandbox.',
@@ -173,9 +170,6 @@ export default {
   'workingDirectory.drive.readOnly': 'Environment directories are read-only here.',
   'workingDirectory.drive.drives.public': 'Public drive',
   'workingDirectory.drive.drives.personal': 'Personal drive',
-  'workingDirectory.drive.browseDescriptionPersonal':
-    'Browse your personal drive and pick this conversation’s working folder. Only you can see and use it, and you may pick its root.',
   'workingDirectory.drive.rebuildInPersonal':
-    '{{count}} private environment directory ({{names}}) is still on the public drive and is hidden. Private environments now keep their directories on your personal drive; rebuild it there.',
-  'workingDirectory.drive.openPersonal': 'Open personal drive',
+    'Private environment folders ({{names}}) are hidden here. Their owners can rebuild them on their personal drives.',
 };
