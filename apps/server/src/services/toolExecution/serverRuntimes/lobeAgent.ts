@@ -41,7 +41,7 @@ import {
 } from '@/server/services/vent';
 
 import type { ToolExecutionContext } from '../types';
-import { checkBackgroundSubAgentAllowed } from './backgroundSubAgent';
+import { startBackgroundSubAgent } from './backgroundSubAgent';
 import { normalizeMultimodalImageItems } from './lobeAgentImage';
 import { createServerPlanRuntimeService } from './lobeAgentPlan';
 import type { ServerRuntimeRegistration } from './types';
@@ -329,26 +329,28 @@ class LobeAgentExecutionRuntime {
     const subAgentId = params.subAgentId?.trim() || undefined;
     const background = params.runInBackground === true;
 
+    const runner = ctx.subAgent;
+    const startRun = () =>
+      runner.run({ background, description, instruction, subAgentId, timeout });
+
+    let runResult: Awaited<ReturnType<typeof startRun>>;
     if (background) {
-      const refusal = await checkBackgroundSubAgentAllowed({
+      const outcome = await startBackgroundSubAgent({
         db: this.db,
         groupId: this.groupId,
         retryHint: 'Call callSubAgent again without runInBackground to wait for the result.',
+        start: startRun,
         threadId: this.threadId,
         topicId: this.topicId,
         userId: this.userId,
         workspaceId: this.workspaceId,
       });
-      if (refusal) return buildError(refusal.message, refusal.code);
+      if ('refusal' in outcome) return buildError(outcome.refusal.message, outcome.refusal.code);
+      runResult = outcome.result;
+    } else {
+      runResult = await startRun();
     }
-
-    const { started, error, threadId, subOperationId, toolMessageId } = await ctx.subAgent.run({
-      background,
-      description,
-      instruction,
-      subAgentId,
-      timeout,
-    });
+    const { started, error, threadId, subOperationId, toolMessageId } = runResult;
 
     // The child op failed to start — no completion bridge will ever fire to
     // backfill a placeholder, so we must NOT defer/park here. Return a normal

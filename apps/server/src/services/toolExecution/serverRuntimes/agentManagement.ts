@@ -27,7 +27,7 @@ import { AgentService } from '@/server/services/agent';
 import { DiscoverService } from '@/server/services/discover';
 
 import { type ToolExecutionContext, type ToolExecutionResult } from '../types';
-import { checkBackgroundSubAgentAllowed } from './backgroundSubAgent';
+import { startBackgroundSubAgent } from './backgroundSubAgent';
 import {
   NEXT_RUN_NOTE,
   resolveOrInstallMarketPlugin,
@@ -101,36 +101,45 @@ export const agentManagementRuntime: ServerRuntimeRegistration = {
         }
 
         const background = params.runInBackground === true;
-        if (background) {
-          const refusal = await checkBackgroundSubAgentAllowed({
-            db: context.serverDB!,
-            groupId: ctx.groupId,
-            retryHint: 'Call callAgent again without runInBackground to wait for the reply.',
-            threadId: ctx.threadId,
-            topicId: ctx.topicId,
-            userId: context.userId!,
-            workspaceId: context.workspaceId,
-          });
-          if (refusal) {
-            return {
-              content: refusal.message,
-              error: { code: refusal.code, message: refusal.message },
-              success: false,
-            };
-          }
-        }
 
         // The target's name titles its thread and, for a background call, is who
         // the reply is delivered as.
         const targetTitle = (await agentModel.getAgentConfigById(agentId))?.title;
 
-        const { started, error, subOperationId, threadId, toolMessageId } = await ctx.subAgent.run({
-          agentId,
-          background,
-          description: targetTitle || `Call agent ${agentId}`,
-          instruction,
-          timeout: 1_800_000,
-        });
+        const runner = ctx.subAgent;
+        const startRun = () =>
+          runner.run({
+            agentId,
+            background,
+            description: targetTitle || `Call agent ${agentId}`,
+            instruction,
+            timeout: 1_800_000,
+          });
+
+        let runResult: Awaited<ReturnType<typeof startRun>>;
+        if (background) {
+          const outcome = await startBackgroundSubAgent({
+            db: context.serverDB!,
+            groupId: ctx.groupId,
+            retryHint: 'Call callAgent again without runInBackground to wait for the reply.',
+            start: startRun,
+            threadId: ctx.threadId,
+            topicId: ctx.topicId,
+            userId: context.userId!,
+            workspaceId: context.workspaceId,
+          });
+          if ('refusal' in outcome) {
+            return {
+              content: outcome.refusal.message,
+              error: { code: outcome.refusal.code, message: outcome.refusal.message },
+              success: false,
+            };
+          }
+          runResult = outcome.result;
+        } else {
+          runResult = await startRun();
+        }
+        const { started, error, subOperationId, threadId, toolMessageId } = runResult;
 
         if (!started) {
           const detail = error ? `: ${error}` : '.';
