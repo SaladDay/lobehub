@@ -197,6 +197,7 @@ const DriveUsage = memo(() => {
   if (isLoading || !data) return <Skeleton.Text rows={1} width={160} />;
 
   const { quotaBytes, totalUsageBytes } = data;
+  const isWorkspace = (data.drives ?? []).length > 1;
   const over = totalUsageBytes !== null && totalUsageBytes > quotaBytes;
 
   return (
@@ -208,7 +209,7 @@ const DriveUsage = memo(() => {
       <Flexbox
         horizontal
         align={'center'}
-        aria-label={t(data.drives.length > 1 ? 'drive.usage.poolTitle' : 'drive.usage.title')}
+        aria-label={t(isWorkspace ? 'drive.usage.poolTitle' : 'drive.usage.title')}
         as={'button'}
         className={styles.trigger}
         gap={8}
