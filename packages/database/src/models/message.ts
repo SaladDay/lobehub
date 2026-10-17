@@ -4434,7 +4434,7 @@ export class MessageModel {
         ? sql`${messagePlugins.state}->>'status' = 'pending'`
         : and(
             sql`${messagePlugins.state}->>'status' in ('completed', 'error')`,
-            sql`${messagePlugins.state}->>'deliveredAt' is null`,
+            sql`not coalesce(jsonb_exists(${messagePlugins.state}, 'deliveredAt'), false)`,
           );
 
     const rows = await this.db
@@ -4450,7 +4450,7 @@ export class MessageModel {
       .where(
         and(
           eq(messages.topicId, params.topicId),
-          sql`(${messagePlugins.state}->>'background')::boolean is true`,
+          sql`coalesce(${messagePlugins.state}->>'background', '') = 'true'`,
           statusCondition,
           this.ownership(),
           this.pluginsOwnership(),
@@ -4480,7 +4480,7 @@ export class MessageModel {
       .where(
         and(
           inArray(messagePlugins.id, ids),
-          sql`${messagePlugins.state}->>'deliveredAt' is null`,
+          sql`not coalesce(jsonb_exists(${messagePlugins.state}, 'deliveredAt'), false)`,
           this.pluginsOwnership(),
         ),
       )
