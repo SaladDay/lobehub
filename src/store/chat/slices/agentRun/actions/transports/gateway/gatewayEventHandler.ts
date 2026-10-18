@@ -38,6 +38,7 @@ import { notifyDesktopHumanApprovalRequired } from '@/store/chat/utils/desktopNo
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 
 import { applyMessagePatch } from './messagePatch';
+import { resolveStepMetricPatch } from './stepMetrics';
 
 // `agent_runtime_end` reasons that are NOT a clean completion: a mid-stream
 // cancel and a deferred-tool park. These must NOT mark the topic unread, and
@@ -1048,6 +1049,7 @@ export const createGatewayEventHandler = (
 
       case 'step_start': {
         const data = event.data as {
+          llmCalls?: number;
           messageRevision?: number;
           pendingToolsCalling?: unknown[];
           phase?: string;
@@ -1068,12 +1070,10 @@ export const createGatewayEventHandler = (
           });
         }
 
-        // The server's stepIndex is the authoritative step counter — mirror it
-        // onto the operation so step-based UI (OpStatusTray) stays correct
-        // even across page-refresh reconnects.
-        if (typeof event.stepIndex === 'number') {
-          get().updateOperationMetadata(operationId, { stepCount: event.stepIndex + 1 });
-        }
+        // The server's stepIndex is the authoritative execution counter; `llmCalls`
+        // is the separate user-facing metric (actual model calls).
+        const metricPatch = resolveStepMetricPatch(event.stepIndex, data?.llmCalls);
+        if (metricPatch) get().updateOperationMetadata(operationId, metricPatch);
 
         // Server attaches the canonical UIChatMessage[] snapshot at every
         // step boundary (agent-runtime #15152). Use it as Source of Truth
