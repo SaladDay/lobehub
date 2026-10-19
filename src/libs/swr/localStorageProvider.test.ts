@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { bootTiming } from '@/libs/bootTiming';
 
-import { taskKeys, taskTemplateKeys } from './keys';
+import { taskKeys } from './keys';
 import { buildLocalDataKey, localDataCache } from './localDataCache';
 import {
   CACHE_TIERS,
@@ -104,7 +104,7 @@ describe('createCacheProvider — tiering', () => {
       localPatterns: [...CACHE_TIERS.local],
     });
     const map = provider();
-    const key = JSON.stringify(taskTemplateKeys.listDailyRecommend('', 3, 'zh-CN'));
+    const key = JSON.stringify(['taskTemplate:listDailyRecommend:v2', '', 3, 'zh-CN']);
 
     map.set(key, { data: [{ id: 1, title: 'Daily brief' }] });
 
